@@ -168,6 +168,7 @@ type (
 		ScreenName           string   `json:"screen_name"`
 		StatusesCount        int      `json:"statuses_count"`
 		Verified             bool     `json:"verified"`
+		PossiblySensitive    bool     `json:"possibly_sensitive"`
 	}
 
 	Place struct {

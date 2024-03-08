@@ -69,8 +69,11 @@ type entry struct {
 			UserDisplayType string `json:"userDisplayType"`
 			UserResults     struct {
 				Result struct {
-					RestID string     `json:"rest_id"`
-					Legacy legacyUser `json:"legacy"`
+					RestID               string     `json:"rest_id"`
+					Has_graduated_access bool       `json:"has_graduated_access,omitempty"`
+					Is_blue_verified     bool       `json:"is_blue_verified,omitempty"`
+					Profile_image_shape  string     `json:"profile_image_shape,omitempty"`
+					Legacy               legacyUser `json:"legacy"`
 				} `json:"result"`
 			} `json:"user_results"`
 		} `json:"itemContent"`
@@ -91,9 +94,44 @@ type timelineV2 struct {
 						} `json:"instructions"`
 					} `json:"timeline"`
 				} `json:"timeline_v2"`
+				Timeline struct {
+					Timeline struct {
+						Instructions []struct {
+							Entries []entry `json:"entries"`
+							Entry   entry   `json:"entry"`
+							Type    string  `json:"type"`
+						} `json:"instructions"`
+					} `json:"timeline"`
+				} `json:"timeline"`
 			} `json:"result"`
 		} `json:"user"`
 	} `json:"data"`
+}
+
+func (timeline *timelineV2) parseUsers() ([]*Profile, string) {
+	profiles := make([]*Profile, 0)
+	cursor := ""
+	for _, instruction := range timeline.Data.User.Result.Timeline.Timeline.Instructions {
+		if instruction.Type == "TimelineAddEntries" || instruction.Type == "TimelineReplaceEntry" {
+			if instruction.Entry.Content.CursorType == "Bottom" {
+				cursor = instruction.Entry.Content.Value
+				continue
+			}
+			for _, entry := range instruction.Entries {
+				if entry.Content.ItemContent.UserDisplayType == "User" {
+					if profile := parseProfile(entry.Content.ItemContent.UserResults.Result.Legacy); profile.Name != "" {
+						if profile.UserID == "" {
+							profile.UserID = entry.Content.ItemContent.UserResults.Result.RestID
+						}
+						profiles = append(profiles, &profile)
+					}
+				} else if entry.Content.CursorType == "Bottom" {
+					cursor = entry.Content.Value
+				}
+			}
+		}
+	}
+	return profiles, cursor
 }
 
 func (timeline *timelineV2) parseTweets() ([]*Tweet, string) {

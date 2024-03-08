@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"reflect"
 	"time"
 )
 
@@ -68,7 +69,20 @@ func (s *Scraper) RequestAPI(req *http.Request, target interface{}) error {
 	if target == nil {
 		return nil
 	}
-	return json.Unmarshal(content, target)
+	targetType := reflect.TypeOf(target)
+	if targetType.Kind() != reflect.Ptr {
+		return fmt.Errorf("target must be a pointer")
+	}
+
+	if targetType.Elem() == reflect.TypeOf([]byte{}) {
+		// if target is []byte ，copy content to target
+		targetValue := reflect.ValueOf(target)
+		targetValue.Elem().SetBytes(content)
+		return nil
+	} else {
+		// else use json.Unmarshal
+		return json.Unmarshal(content, target)
+	}
 }
 
 // GetGuestToken from Twitter API
