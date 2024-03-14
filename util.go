@@ -169,6 +169,7 @@ func parseLegacyTweet(user *legacyUser, tweet *legacyTweet) *Tweet {
 		Retweets:       tweet.RetweetCount,
 		Text:           tweet.FullText,
 		UserID:         tweet.UserIDStr,
+		Avatar:         user.ProfileImageURLHTTPS,
 		Username:       username,
 	}
 

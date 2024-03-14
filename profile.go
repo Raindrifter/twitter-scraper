@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"sync"
 	"time"
+
+	jsoniter "github.com/json-iterator/go"
 )
 
 // Global cache for user IDs
@@ -85,6 +87,62 @@ func (s *Scraper) GetProfile(username string) (Profile, error) {
 	}
 
 	return parseProfile(jsn.Data.User.Legacy), nil
+}
+
+var USER_FEATURES = map[string]interface{}{
+	"hidden_profile_likes_enabled":                                      true,
+	"hidden_profile_subscriptions_enabled":                              true,
+	"responsive_web_graphql_exclude_directive_enabled":                  true,
+	"verified_phone_label_enabled":                                      false,
+	"subscriptions_verification_info_is_identity_verified_enabled":      true,
+	"subscriptions_verification_info_verified_since_enabled":            true,
+	"highlights_tweets_tab_ui_enabled":                                  true,
+	"responsive_web_twitter_article_notes_tab_enabled":                  false,
+	"creator_subscriptions_tweet_preview_api_enabled":                   true,
+	"responsive_web_graphql_skip_user_profile_image_extensions_enabled": false,
+	"responsive_web_graphql_timeline_navigation_enabled":                true,
+}
+
+// GetProfile return parsed user profile.
+func (s *Scraper) GetProfileByUserId(userId string) (Profile, error) {
+	req, err := http.NewRequest("GET", "https://twitter.com/i/api/graphql/tD8zKvQzwY3kdx5yz6YmOw/UserByRestId", nil)
+	if err != nil {
+		return Profile{}, err
+	}
+
+	variables := map[string]interface{}{
+		"userId":                   userId,
+		"withSafetyModeUserFields": true,
+	}
+
+	query := url.Values{}
+	query.Set("variables", mapToJSONString(variables))
+	query.Set("features", mapToJSONString(USER_FEATURES))
+	req.URL.RawQuery = query.Encode()
+
+	var result []byte
+	err = s.RequestAPI(req, &result)
+	if err != nil {
+		return Profile{}, err
+	}
+
+	RestID := jsoniter.Get(result, "data", "user", "result", "rest_id").ToString()
+	if RestID == "" {
+		return Profile{}, fmt.Errorf("rest_id not found")
+	}
+	ScreenName := jsoniter.Get(result, "data", "user", "result", "legacy", "screen_name").ToString()
+	if ScreenName == "" {
+		return Profile{}, fmt.Errorf("either @%s does not exist or is private", userId)
+	}
+
+	var legacy legacyUser
+	legacy.IDStr = RestID
+	jsoniter.Get(result, "data", "user", "result", "legacy").ToVal(&legacy)
+	if legacy.ScreenName == "" {
+		fmt.Println(string(result))
+		return Profile{}, fmt.Errorf("either @%s does not exist or is private", userId)
+	}
+	return parseProfile(legacy), nil
 }
 
 // GetFansByUserID gets fans for a given userID, via the Twitter frontend GraphQL API.

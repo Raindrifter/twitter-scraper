@@ -32,6 +32,7 @@ type (
 
 	// Tweet type.
 	Tweet struct {
+		Avatar            string
 		ConversationID    string
 		GIFs              []GIF
 		Hashtags          []string

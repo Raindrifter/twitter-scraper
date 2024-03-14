@@ -139,8 +139,18 @@ func (s *Scraper) getFlowToken(data map[string]interface{}) (string, error) {
 	return info.FlowToken, err
 }
 
-// IsLoggedIn check if scraper logged in
+func (s *Scraper) SetLoggedIn() {
+	s.isLogged = true
+	s.isOpenAccount = false
+	s.setBearerToken(bearerToken2)
+}
+
 func (s *Scraper) IsLoggedIn() bool {
+	return s.isLogged
+}
+
+// IsLoggedIn check if scraper logged in
+func (s *Scraper) CheckLoggedIn() bool {
 	s.isLogged = true
 	s.setBearerToken(bearerToken2)
 	req, err := http.NewRequest("GET", "https://api.twitter.com/1.1/account/verify_credentials.json", nil)

@@ -48,7 +48,7 @@ const (
 )
 
 // default http client timeout
-const DefaultClientTimeout = 10 * time.Second
+const DefaultClientTimeout = 15 * time.Second
 
 // New creates a Scraper object
 func New() *Scraper {
