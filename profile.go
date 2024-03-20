@@ -276,6 +276,138 @@ func (s *Scraper) GetFollowingByUserID(userId string, maxTweetsNbr int, cursor s
 	return users, nextCursor, nil
 }
 
+func (s *Scraper) CombinedLists(userId string, maxTweetsNbr int) ([]byte, string, error) {
+	if maxTweetsNbr > 200 {
+		maxTweetsNbr = 200
+	}
+
+	req, err := s.newRequest("GET", "https://twitter.com/i/api/graphql/9PezbW92Zt1JUPDum2CfXg/CombinedLists")
+	if err != nil {
+		return nil, "", err
+	}
+
+	variables := map[string]interface{}{
+		"userId": userId,
+		"count":  maxTweetsNbr,
+	}
+	features := map[string]interface{}{
+		"responsive_web_graphql_exclude_directive_enabled":                        true,
+		"verified_phone_label_enabled":                                            false,
+		"creator_subscriptions_tweet_preview_api_enabled":                         true,
+		"responsive_web_graphql_timeline_navigation_enabled":                      true,
+		"responsive_web_graphql_skip_user_profile_image_extensions_enabled":       false,
+		"c9s_tweet_anatomy_moderator_badge_enabled":                               true,
+		"tweetypie_unmention_optimization_enabled":                                true,
+		"responsive_web_edit_tweet_api_enabled":                                   true,
+		"graphql_is_translatable_rweb_tweet_is_translatable_enabled":              true,
+		"view_counts_everywhere_api_enabled":                                      true,
+		"longform_notetweets_consumption_enabled":                                 true,
+		"responsive_web_twitter_article_tweet_consumption_enabled":                true,
+		"tweet_awards_web_tipping_enabled":                                        false,
+		"freedom_of_speech_not_reach_fetch_enabled":                               true,
+		"standardized_nudges_misinfo":                                             true,
+		"tweet_with_visibility_results_prefer_gql_limited_actions_policy_enabled": true,
+		"rweb_video_timestamps_enabled":                                           true,
+		"longform_notetweets_rich_text_read_enabled":                              true,
+		"longform_notetweets_inline_media_enabled":                                true,
+		"responsive_web_enhance_cards_enabled":                                    false,
+	}
+
+	query := url.Values{}
+	query.Set("variables", mapToJSONString(variables))
+	query.Set("features", mapToJSONString(features))
+	req.URL.RawQuery = query.Encode()
+
+	var result []byte
+	err = s.RequestAPI(req, &result)
+	if err != nil {
+		return nil, "", err
+	}
+
+	return result, "", nil
+}
+
+func (s *Scraper) ListMembers(listId string, maxTweetsNbr int, cursor string) ([]*Profile, string, error) {
+	if maxTweetsNbr > 200 {
+		maxTweetsNbr = 200
+	}
+
+	req, err := s.newRequest("GET", "https://twitter.com/i/api/graphql/FOtiCTKXhMqD4Gk7AFf3uw/ListMembers")
+	if err != nil {
+		return nil, "", err
+	}
+
+	variables := map[string]interface{}{
+		"listId":                   listId,
+		"count":                    maxTweetsNbr,
+		"withSafetyModeUserFields": true,
+	}
+	features := map[string]interface{}{
+		"responsive_web_graphql_exclude_directive_enabled":                        true,
+		"verified_phone_label_enabled":                                            false,
+		"creator_subscriptions_tweet_preview_api_enabled":                         true,
+		"responsive_web_graphql_timeline_navigation_enabled":                      true,
+		"responsive_web_graphql_skip_user_profile_image_extensions_enabled":       false,
+		"c9s_tweet_anatomy_moderator_badge_enabled":                               true,
+		"tweetypie_unmention_optimization_enabled":                                true,
+		"responsive_web_edit_tweet_api_enabled":                                   true,
+		"graphql_is_translatable_rweb_tweet_is_translatable_enabled":              true,
+		"view_counts_everywhere_api_enabled":                                      true,
+		"longform_notetweets_consumption_enabled":                                 true,
+		"responsive_web_twitter_article_tweet_consumption_enabled":                false,
+		"tweet_awards_web_tipping_enabled":                                        false,
+		"freedom_of_speech_not_reach_fetch_enabled":                               true,
+		"standardized_nudges_misinfo":                                             true,
+		"tweet_with_visibility_results_prefer_gql_limited_actions_policy_enabled": true,
+		"rweb_video_timestamps_enabled":                                           true,
+		"longform_notetweets_rich_text_read_enabled":                              true,
+		"longform_notetweets_inline_media_enabled":                                true,
+		"responsive_web_media_download_video_enabled":                             false,
+		"responsive_web_enhance_cards_enabled":                                    false,
+	}
+
+	cnumber, _ := strconv.ParseInt(cursor, 10, 64)
+	if cursor != "" {
+		variables["cursor"] = cnumber
+	}
+
+	query := url.Values{}
+	query.Set("variables", mapToJSONString(variables))
+	query.Set("features", mapToJSONString(features))
+	req.URL.RawQuery = query.Encode()
+
+	var result []byte
+	err = s.RequestAPI(req, &result)
+	if err != nil {
+		return nil, "", err
+	}
+
+	var nextCursor = ""
+	var instructions []map[string]interface{}
+	jsoniter.Get(result, "data", "list", "members_timeline", "timeline", "instructions").ToVal(&instructions)
+	profiles := make([]*Profile, 0)
+	for i, instruction := range instructions {
+		if instruction["type"] == "TimelineAddEntries" || instruction["type"] == "TimelineReplaceEntry" {
+			var entries []entry
+			jsoniter.Get(result, "data", "list", "members_timeline", "timeline", "instructions", i, "entries").ToVal(&entries)
+			for _, entry := range entries {
+				if entry.Content.ItemContent.UserDisplayType == "User" {
+					if profile := parseProfile(entry.Content.ItemContent.UserResults.Result.Legacy); profile.Name != "" {
+						if profile.UserID == "" {
+							profile.UserID = entry.Content.ItemContent.UserResults.Result.RestID
+						}
+						profiles = append(profiles, &profile)
+					}
+				} else if entry.Content.CursorType == "Bottom" {
+					nextCursor = entry.Content.Value
+				}
+			}
+		}
+	}
+
+	return profiles, nextCursor, nil
+}
+
 // GetUserIDByScreenName from API
 func (s *Scraper) GetUserIDByScreenName(screenName string) (string, error) {
 	id, ok := cacheIDs.Load(screenName)
