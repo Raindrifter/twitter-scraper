@@ -148,6 +148,16 @@ func (timeline *timelineV2) parseTweets() ([]*Tweet, string) {
 					tweets = append(tweets, tweet)
 				}
 			}
+			for _, item := range entry.Content.Items {
+				if item.Item.ItemContent.TweetResults.Result.Typename == "Tweet" {
+					if tweet := item.Item.ItemContent.TweetResults.Result.parse(); tweet != nil {
+						if item.Item.ItemContent.TweetDisplayType == "SelfThread" {
+							tweet.IsSelfThread = true
+						}
+						tweets = append(tweets, tweet)
+					}
+				}
+			}
 		}
 	}
 	return tweets, cursor
